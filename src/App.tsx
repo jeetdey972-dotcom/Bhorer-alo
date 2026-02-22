@@ -804,6 +804,7 @@ const LoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: ()
       : { clientId: isRegistering ? null : formData.clientId, mobile: formData.mobile, name: formData.name };
 
     try {
+      console.log(`Attempting login to: ${endpoint}`);
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -811,22 +812,24 @@ const LoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: ()
       });
       
       if (!res.ok) {
-        const text = await res.text();
-        console.error("Server error:", text);
-        setError(`Server error: ${res.status}`);
+        const errorText = await res.text();
+        console.error("Server responded with error:", res.status, errorText);
+        setError(`Server error (${res.status}). Please try again later.`);
         return;
       }
 
       const data = await res.json();
+      console.log("Login response data:", data);
+      
       if (data.success) {
         onLogin(isAdmin ? data.user : { ...data.client, role: 'client' });
         onClose();
       } else {
-        setError(data.message);
+        setError(data.message || "Invalid credentials");
       }
-    } catch (err) {
-      console.error("Fetch error:", err);
-      setError('Connection error. Please check your internet or server status.');
+    } catch (err: any) {
+      console.error("Detailed Fetch Error:", err);
+      setError(`Connection error: ${err.message || 'Unknown error'}. Please check your internet.`);
     }
   };
 
