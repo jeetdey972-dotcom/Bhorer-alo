@@ -809,6 +809,14 @@ const LoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: ()
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
+      
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Server error:", text);
+        setError(`Server error: ${res.status}`);
+        return;
+      }
+
       const data = await res.json();
       if (data.success) {
         onLogin(isAdmin ? data.user : { ...data.client, role: 'client' });
@@ -817,7 +825,8 @@ const LoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: ()
         setError(data.message);
       }
     } catch (err) {
-      setError('Connection error');
+      console.error("Fetch error:", err);
+      setError('Connection error. Please check your internet or server status.');
     }
   };
 
