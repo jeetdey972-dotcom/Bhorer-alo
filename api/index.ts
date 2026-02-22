@@ -250,7 +250,7 @@ app.post("/api/admin/intake/update", async (req, res) => {
   try {
     const { data: updatedForm, error } = await supabase
       .from('intake_forms')
-      .update({ ...cleanData, updated_at: new Date().toISOString(), status: 'submitted' })
+      .update({ ...cleanData, updated_at: new Date().toISOString() })
       .eq('id', form_id)
       .select()
       .single();

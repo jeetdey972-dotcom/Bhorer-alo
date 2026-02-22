@@ -962,7 +962,7 @@ const IntakeFormView = ({ client, onComplete }: { client: any, onComplete: () =>
       const res = await fetch('/api/intake/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: client.client_id, ...formData, status: 'submitted' })
+        body: JSON.stringify({ client_id: client.client_id, ...formData })
       });
       
       if (res.ok) {
