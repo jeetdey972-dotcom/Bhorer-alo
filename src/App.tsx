@@ -799,6 +799,16 @@ const LoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: ()
     setError('');
     
     const endpoint = isAdmin ? '/api/admin/login' : '/api/client/login';
+    
+    // Validate Indian Mobile Number
+    if (!isAdmin) {
+      const mobileRegex = /^(\+91)?[6-9]\d{9}$/;
+      if (!mobileRegex.test(formData.mobile)) {
+        setError('Please enter a valid Indian mobile number (e.g., +91XXXXXXXXXX or XXXXXXXXXX)');
+        return;
+      }
+    }
+
     const body = isAdmin 
       ? { username: formData.username, password: formData.password }
       : { clientId: isRegistering ? null : formData.clientId, mobile: formData.mobile, name: formData.name };
@@ -897,8 +907,13 @@ const LoginModal = ({ isOpen, onClose, onLogin }: { isOpen: boolean, onClose: ()
                 )}
                 <input 
                   type="tel" placeholder="Mobile Number" required
+                  maxLength={13}
                   className="w-full px-6 py-4 bg-white/50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-brand-primary outline-none"
-                  value={formData.mobile} onChange={e => setFormData({...formData, mobile: e.target.value})}
+                  value={formData.mobile} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9+]/g, '');
+                    setFormData({...formData, mobile: val});
+                  }}
                 />
               </>
             )}
@@ -938,15 +953,30 @@ const IntakeFormView = ({ client, onComplete }: { client: any, onComplete: () =>
     signature: ''
   });
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const saveForm = async () => {
-    const res = await fetch('/api/intake/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: client.client_id, ...formData, status: 'submitted' })
-    });
-    if (res.ok) {
-      alert('Form submitted successfully!');
-      onComplete();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/intake/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: client.client_id, ...formData, status: 'submitted' })
+      });
+      
+      if (res.ok) {
+        alert('Form submitted successfully!');
+        onComplete();
+      } else {
+        const errorData = await res.json();
+        alert('Error: ' + (errorData.message || 'Failed to submit form'));
+      }
+    } catch (err) {
+      console.error("Submission error:", err);
+      alert('Connection error. Please check your internet and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1110,11 +1140,16 @@ const IntakeFormView = ({ client, onComplete }: { client: any, onComplete: () =>
             </button>
           ) : (
             <button 
-              disabled={!formData.declaration || !formData.signature}
+              disabled={!formData.declaration || !formData.signature || isSubmitting}
               onClick={saveForm}
-              className="px-8 py-3 bg-brand-secondary text-white rounded-xl font-bold shadow-lg shadow-brand-secondary/20 disabled:opacity-50"
+              className="px-8 py-3 bg-brand-secondary text-white rounded-xl font-bold shadow-lg shadow-brand-secondary/20 disabled:opacity-50 flex items-center gap-2"
             >
-              Submit Form
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Submitting...
+                </>
+              ) : 'Submit Form'}
             </button>
           )}
         </div>

@@ -153,20 +153,33 @@ app.post("/api/client/login", async (req, res) => {
 // Submit Intake Form
 app.post("/api/intake/submit", async (req, res) => {
   const { client_id, ...formData } = req.body;
+  console.log("Received intake submission for client:", client_id);
+  
   try {
-    const { data: existing } = await supabase
+    if (!client_id) {
+      throw new Error("Client ID is missing");
+    }
+
+    const { data: existing, error: fetchError } = await supabase
       .from('intake_forms')
       .select('id')
       .eq('client_id', client_id)
       .maybeSingle();
 
+    if (fetchError) {
+      console.error("Error checking existing form:", fetchError);
+      throw fetchError;
+    }
+
     if (existing) {
+      console.log("Updating existing form for:", client_id);
       const { error } = await supabase
         .from('intake_forms')
         .update(formData)
         .eq('client_id', client_id);
       if (error) throw error;
     } else {
+      console.log("Inserting new form for:", client_id);
       const { error } = await supabase
         .from('intake_forms')
         .insert([{ client_id, ...formData }]);
@@ -174,8 +187,8 @@ app.post("/api/intake/submit", async (req, res) => {
     }
     res.json({ success: true });
   } catch (error: any) {
-    console.error(error);
-    res.status(500).json({ success: false, message: error.message });
+    console.error("Intake submission error:", error);
+    res.status(500).json({ success: false, message: error.message || "Internal server error" });
   }
 });
 
