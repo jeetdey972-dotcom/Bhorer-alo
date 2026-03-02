@@ -575,14 +575,51 @@ const Contact = () => (
 const BookAppointment = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date());
   const [timeSlot, setTimeSlot] = useState('');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
   const [isBooked, setIsBooked] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const slots = ["10:00 AM", "11:30 AM", "02:00 PM", "04:30 PM", "06:00 PM"];
 
-  const handleBooking = (e: FormEvent) => {
+  const handleBooking = async (e: FormEvent) => {
     e.preventDefault();
-    setIsBooked(true);
-    // In a real app, this would send a request to the backend
+    if (!name || !phone) {
+      alert("Name and phone are required.");
+      return;
+    }
+    
+    setIsSubmitting(true);
+    try {
+      const res = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name,
+          phone,
+          preferredDate: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null,
+          message: `${timeSlot ? `Preferred Time: ${timeSlot}\n` : ''}${message}`
+        })
+      });
+      
+      if (res.ok) {
+        setIsBooked(true);
+        setName('');
+        setPhone('');
+        setMessage('');
+        setTimeSlot('');
+        setSelectedDate(new Date());
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to book appointment');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Connection error. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   if (isBooked) {
@@ -592,11 +629,9 @@ const BookAppointment = () => {
           <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-emerald-500/20">
             <CheckCircle2 className="w-10 h-10 text-white" />
           </div>
-          <h2 className="text-3xl font-bold mb-4">Request Received!</h2>
+          <h2 className="text-3xl font-bold mb-4">Appointment request submitted successfully.</h2>
           <p className="text-slate-600 mb-8">
-            Thank you for reaching out. We have received your appointment request for 
-            <span className="font-bold text-slate-900"> {format(selectedDate!, 'MMMM d, yyyy')}</span> at 
-            <span className="font-bold text-slate-900"> {timeSlot}</span>. 
+            Thank you for reaching out. We have received your appointment request. 
             Our team will call you shortly to confirm.
           </p>
           <button 
@@ -618,6 +653,29 @@ const BookAppointment = () => {
           <p className="text-slate-500 mb-8">Select a preferred date and time for your child's first session. We offer both online and in-person consultations.</p>
           
           <form onSubmit={handleBooking} className="space-y-6">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-3">Your Name *</label>
+                <input 
+                  type="text" 
+                  className="w-full p-4 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-brand-primary"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-3">Phone Number *</label>
+                <input 
+                  type="tel" 
+                  className="w-full p-4 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-brand-primary"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-3">Select Date</label>
               <input 
@@ -625,7 +683,6 @@ const BookAppointment = () => {
                 className="w-full p-4 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-brand-primary"
                 value={selectedDate ? format(selectedDate, 'yyyy-MM-dd') : ''}
                 onChange={(e) => setSelectedDate(new Date(e.target.value))}
-                required
               />
             </div>
 
@@ -645,12 +702,22 @@ const BookAppointment = () => {
               </div>
             </div>
 
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-3">Message (Optional)</label>
+              <textarea 
+                className="w-full p-4 bg-white border border-slate-100 rounded-2xl outline-none focus:ring-2 focus:ring-brand-primary"
+                rows={3}
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+              />
+            </div>
+
             <button 
               type="submit"
-              disabled={!timeSlot || !selectedDate}
+              disabled={isSubmitting || !name || !phone}
               className="w-full py-4 bg-brand-secondary text-white rounded-2xl font-bold shadow-lg shadow-brand-secondary/20 hover:opacity-90 transition-all disabled:opacity-50"
             >
-              Request Appointment
+              {isSubmitting ? 'Submitting...' : 'Request Appointment'}
             </button>
           </form>
         </div>
@@ -966,11 +1033,14 @@ const IntakeFormView = ({ client, onComplete }: { client: any, onComplete: () =>
       });
       
       if (res.ok) {
-        alert('Form submitted successfully!');
+        const data = await res.json();
+        console.log("Submission success details:", data);
+        alert(`Form submitted successfully!\nClient ID: ${client.client_id}\nSaved ID: ${data.data?.[0]?.id || 'N/A'}`);
         onComplete();
       } else {
         const errorData = await res.json();
-        alert('Error: ' + (errorData.message || 'Failed to submit form'));
+        console.error("Submission error details:", errorData);
+        alert('Error: ' + (errorData.message || 'Failed to submit form') + (errorData.details ? '\nDetails: ' + JSON.stringify(errorData.details) : ''));
       }
     } catch (err) {
       console.error("Submission error:", err);
@@ -1160,6 +1230,8 @@ const IntakeFormView = ({ client, onComplete }: { client: any, onComplete: () =>
 
 const AdminDashboard = () => {
   const [clients, setClients] = useState<Client[]>([]);
+  const [appointments, setAppointments] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'clients' | 'appointments'>('clients');
   const [search, setSearch] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [selectedClient, setSelectedClient] = useState<any>(null);
@@ -1169,6 +1241,7 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchClients();
+    fetchAppointments();
   }, []);
 
   const fetchClients = async () => {
@@ -1176,6 +1249,22 @@ const AdminDashboard = () => {
     const data = await res.json();
     setClients(data);
     setLoading(false);
+  };
+
+  const fetchAppointments = async () => {
+    try {
+      const res = await fetch('/api/appointments');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setAppointments(data);
+      } else {
+        console.error("Failed to fetch appointments:", data);
+        setAppointments([]);
+      }
+    } catch (err) {
+      console.error("Error fetching appointments:", err);
+      setAppointments([]);
+    }
   };
 
   const viewClient = async (clientId: string) => {
@@ -1237,7 +1326,7 @@ const AdminDashboard = () => {
   });
 
   return (
-    <div className="max-w-7xl mx-auto py-12 px-4">
+    <div className="max-w-7xl mx-auto py-12 px-4 space-y-12">
       <div className="grid lg:grid-cols-3 gap-8">
         {/* Sidebar: Client List */}
         <div className="glass rounded-[2rem] p-6 h-[calc(100vh-200px)] flex flex-col">
@@ -1259,42 +1348,42 @@ const AdminDashboard = () => {
               />
             </div>
           </div>
-          
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-            {filteredClients.map(c => (
-              <button 
-                key={c.client_id}
-                onClick={() => viewClient(c.client_id)}
-                className={`w-full text-left p-4 rounded-2xl transition-all ${selectedClient?.client?.client_id === c.client_id ? 'bg-brand-primary text-white shadow-lg' : 'hover:bg-brand-blue/50'}`}
-              >
-                <div className="flex justify-between items-start mb-1">
-                  <span className="font-bold text-sm truncate pr-2">{c.name}</span>
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${selectedClient?.client?.client_id === c.client_id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-                    {c.client_id}
-                  </span>
-                </div>
-                <p className={`text-xs ${selectedClient?.client?.client_id === c.client_id ? 'text-white/70' : 'text-slate-400'}`}>
-                  {c.form_id ? `Form: ${format(new Date(c.form_date!), 'MMM d, yyyy')}` : 'No Form Submitted'}
-                </p>
-              </button>
-            ))}
+            
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+              {filteredClients.map(c => (
+                <button 
+                  key={c.client_id}
+                  onClick={() => viewClient(c.client_id)}
+                  className={`w-full text-left p-4 rounded-2xl transition-all ${selectedClient?.client?.client_id === c.client_id ? 'bg-brand-primary text-white shadow-lg' : 'hover:bg-brand-blue/50'}`}
+                >
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-bold text-sm truncate pr-2">{c.name}</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded-full uppercase font-bold ${selectedClient?.client?.client_id === c.client_id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
+                      {c.client_id}
+                    </span>
+                  </div>
+                  <p className={`text-xs ${selectedClient?.client?.client_id === c.client_id ? 'text-white/70' : 'text-slate-400'}`}>
+                    {c.form_id ? `Form: ${format(new Date(c.form_date!), 'MMM d, yyyy')}` : 'No Form Submitted'}
+                  </p>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Main: Client Details */}
-        <div className="lg:col-span-2">
-          {selectedClient ? (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className="text-2xl font-bold">Case History</h2>
-                <div className="flex gap-3">
-                  <button 
-                    onClick={downloadPDF}
-                    className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
-                  >
-                    <Download className="w-4 h-4" /> Export PDF
-                  </button>
-                </div>
+          {/* Main: Client Details */}
+          <div className="lg:col-span-2">
+            {selectedClient ? (
+              <div className="space-y-6">
+                <div className="flex justify-between items-center">
+                  <h2 className="text-2xl font-bold">Case History</h2>
+                  <div className="flex gap-3">
+                    <button 
+                      onClick={downloadPDF}
+                      className="flex items-center gap-2 px-6 py-2 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all"
+                    >
+                      <Download className="w-4 h-4" /> Export PDF
+                    </button>
+                  </div>
               </div>
 
               <div id="pdf-content" className="glass rounded-[2rem] p-10 bg-white">
@@ -1444,6 +1533,47 @@ const AdminDashboard = () => {
           )}
         </div>
       </div>
+
+      <div className="glass rounded-[2rem] p-8 mt-12">
+        <h2 className="text-2xl font-bold mb-6">Appointment Requests</h2>
+        {appointments.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">
+            <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+            <p>No appointment requests found.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-200">
+                  <th className="py-4 px-6 font-bold text-slate-600">Name</th>
+                  <th className="py-4 px-6 font-bold text-slate-600">Phone</th>
+                  <th className="py-4 px-6 font-bold text-slate-600">Preferred Date</th>
+                  <th className="py-4 px-6 font-bold text-slate-600">Message</th>
+                  <th className="py-4 px-6 font-bold text-slate-600">Submitted</th>
+                </tr>
+              </thead>
+              <tbody>
+                {appointments.map((apt) => (
+                  <tr key={apt.id} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-4 px-6 font-medium">{apt.name}</td>
+                    <td className="py-4 px-6">{apt.phone}</td>
+                    <td className="py-4 px-6">
+                      {apt.preferred_date ? format(new Date(apt.preferred_date), 'MMM d, yyyy') : 'Not specified'}
+                    </td>
+                    <td className="py-4 px-6 max-w-xs truncate" title={apt.message}>
+                      {apt.message || '-'}
+                    </td>
+                    <td className="py-4 px-6 text-sm text-slate-500">
+                      {format(new Date(apt.created_at), 'MMM d, yyyy h:mm a')}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1456,9 +1586,10 @@ export default function App() {
 
   const fetchClientForm = async (clientId: string) => {
     try {
-      // Use a timestamp to bypass any potential browser caching
+      console.log(`Fetching form for client: ${clientId}`);
       const res = await fetch(`/api/admin/client/${clientId}?t=${Date.now()}`);
       const data = await res.json();
+      console.log("Fetched client form data:", data);
       setClientForm(data.form);
       setView('intake');
     } catch (err) {
